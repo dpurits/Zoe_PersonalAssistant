@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import RedirectResponse
@@ -23,11 +24,13 @@ async def start_google_oauth() -> RedirectResponse:
         authorization_url = GoogleService().build_authorization_url()
     except GoogleAuthError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Google OAuth start failed: {exc}") from exc
     return RedirectResponse(authorization_url)
 
 
 @router.get("/oauth/callback")
-async def google_oauth_callback(request: Request) -> dict[str, str]:
+async def google_oauth_callback(request: Request) -> dict[str, Any]:
     try:
         diagnostics = GoogleService().handle_oauth_callback(str(request.url))
     except GoogleAuthError as exc:
