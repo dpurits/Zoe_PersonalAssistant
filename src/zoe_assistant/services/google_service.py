@@ -52,7 +52,7 @@ class GoogleService:
         )
         return authorization_url
 
-    def handle_oauth_callback(self, authorization_response: str) -> None:
+    def handle_oauth_callback(self, authorization_response: str) -> dict[str, Any]:
         oauth_state = self._decode_oauth_state(authorization_response)
         flow = self._build_flow(
             state=oauth_state["state"],
@@ -64,6 +64,7 @@ class GoogleService:
             raise GoogleAuthError("Google did not return OAuth credentials.")
 
         self._save_credentials(flow.credentials)
+        return self._token_store_diagnostics()
 
     def is_connected(self) -> bool:
         return self.connection_status()["connected"]
@@ -86,6 +87,26 @@ class GoogleService:
             "token_store": get_settings().token_store,
             "has_refresh_token": bool(credentials.refresh_token),
             "diagnostics": diagnostics,
+        }
+
+    def test_token_storage(self) -> dict[str, Any]:
+        if self._use_database_token_store():
+            return {"mode": "database", "writable": True}
+
+        token_path = self._token_path()
+        probe_path = token_path.parent / ".write_probe"
+        try:
+            token_path.parent.mkdir(parents=True, exist_ok=True)
+            probe_path.write_text("ok", encoding="utf-8")
+            probe_exists = probe_path.exists()
+            probe_path.unlink(missing_ok=True)
+        except OSError as exc:
+            raise GoogleAuthError(f"Token storage is not writable: {exc}") from exc
+
+        return {
+            "mode": "file",
+            "writable": probe_exists,
+            "diagnostics": self._token_store_diagnostics(),
         }
 
     def list_calendar_events(self, start: datetime, end: datetime) -> list[dict[str, Any]]:

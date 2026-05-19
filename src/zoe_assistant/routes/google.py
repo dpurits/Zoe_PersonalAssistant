@@ -29,17 +29,29 @@ async def start_google_oauth() -> RedirectResponse:
 @router.get("/oauth/callback")
 async def google_oauth_callback(request: Request) -> dict[str, str]:
     try:
-        GoogleService().handle_oauth_callback(str(request.url))
+        diagnostics = GoogleService().handle_oauth_callback(str(request.url))
     except GoogleAuthError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"Google OAuth callback failed: {exc}") from exc
-    return {"status": "connected", "message": "Google OAuth completed. You can close this tab."}
+    return {
+        "status": "connected",
+        "message": "Google OAuth completed. You can close this tab.",
+        "diagnostics": diagnostics,
+    }
 
 
 @router.get("/oauth/status")
 async def google_oauth_status() -> dict:
     return GoogleService().connection_status()
+
+
+@router.get("/oauth/storage-test")
+async def google_oauth_storage_test() -> dict:
+    try:
+        return GoogleService().test_token_storage()
+    except GoogleAuthError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.get("/calendar/events")
