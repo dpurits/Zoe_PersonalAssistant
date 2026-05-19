@@ -70,6 +70,7 @@ class GoogleService:
         return self.connection_status()["connected"]
 
     def connection_status(self) -> dict[str, Any]:
+        diagnostics = self._token_store_diagnostics()
         try:
             credentials = self._load_credentials()
         except GoogleAuthError as exc:
@@ -77,6 +78,7 @@ class GoogleService:
                 "connected": False,
                 "reason": str(exc),
                 "token_store": get_settings().token_store,
+                "diagnostics": diagnostics,
             }
         connected = bool(credentials and (credentials.valid or credentials.refresh_token))
         return {
@@ -84,6 +86,7 @@ class GoogleService:
             "reason": None if connected else "Google credentials exist but are not usable.",
             "token_store": get_settings().token_store,
             "has_refresh_token": bool(credentials.refresh_token),
+            "diagnostics": diagnostics,
         }
 
     def list_calendar_events(self, start: datetime, end: datetime) -> list[dict[str, Any]]:
@@ -247,6 +250,21 @@ class GoogleService:
 
     def _use_database_token_store(self) -> bool:
         return get_settings().token_store == "database"
+
+    def _token_store_diagnostics(self) -> dict[str, Any]:
+        if self._use_database_token_store():
+            return {"mode": "database"}
+        return {
+            "mode": "file",
+            "cwd": str(Path.cwd()),
+            "token_path": str(self.token_path.resolve()),
+            "token_file_exists": self.token_path.exists(),
+            "token_file_size": self.token_path.stat().st_size if self.token_path.exists() else 0,
+            "token_parent_exists": self.token_path.parent.exists(),
+            "token_parent_writable": os.access(self.token_path.parent, os.W_OK)
+            if self.token_path.parent.exists()
+            else None,
+        }
 
     def _encode_oauth_state(self, code_verifier: str) -> str:
         payload = json.dumps(
