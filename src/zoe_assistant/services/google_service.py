@@ -1,12 +1,15 @@
 import base64
 import json
 import os
-import secrets
+import time
 from datetime import datetime, timedelta
 from email.header import decode_header, make_header
 from email.message import EmailMessage
 from pathlib import Path
+from random import SystemRandom
+from string import ascii_letters, digits
 from typing import Any
+from urllib.parse import parse_qs, urlparse
 
 from cryptography.fernet import Fernet, InvalidToken
 from google.auth.transport.requests import Request
@@ -30,7 +33,6 @@ class GoogleService:
 
     token_key = "google_credentials"
     token_path = Path(".local/google_credentials.enc")
-    state_path = Path(".local/google_oauth_state.json")
 
     def required_scopes(self) -> list[str]:
         return [
@@ -41,18 +43,18 @@ class GoogleService:
         ]
 
     def build_authorization_url(self) -> str:
-        state = secrets.token_urlsafe(32)
-        flow = self._build_flow(state=state)
+        code_verifier = _generate_code_verifier()
+        state = self._encode_oauth_state(code_verifier)
+        flow = self._build_flow(state=state, code_verifier=code_verifier)
         authorization_url, _ = flow.authorization_url(
             access_type="offline",
             include_granted_scopes="true",
             prompt="consent",
         )
-        self._save_state(state=state, code_verifier=flow.code_verifier)
         return authorization_url
 
     def handle_oauth_callback(self, authorization_response: str) -> None:
-        oauth_state = self._load_state()
+        oauth_state = self._decode_oauth_state(authorization_response)
         flow = self._build_flow(
             state=oauth_state["state"],
             code_verifier=oauth_state["code_verifier"],
@@ -63,7 +65,6 @@ class GoogleService:
             raise GoogleAuthError("Google did not return OAuth credentials.")
 
         self._save_credentials(flow.credentials)
-        self._delete_state()
 
     def is_connected(self) -> bool:
         try:
@@ -225,27 +226,6 @@ class GoogleService:
             return None
         return self.token_path.read_bytes()
 
-    def _save_state(self, state: str, code_verifier: str | None) -> None:
-        if not code_verifier:
-            raise GoogleAuthError("OAuth code verifier was not generated.")
-        self.state_path.parent.mkdir(parents=True, exist_ok=True)
-        self.state_path.write_text(
-            json.dumps({"state": state, "code_verifier": code_verifier}),
-            encoding="utf-8",
-        )
-
-    def _load_state(self) -> dict[str, str]:
-        if not self.state_path.exists():
-            raise GoogleAuthError("OAuth state is missing. Restart the flow at /google/oauth/start.")
-        data = json.loads(self.state_path.read_text(encoding="utf-8"))
-        if not data.get("state") or not data.get("code_verifier"):
-            raise GoogleAuthError("OAuth state is incomplete. Restart the flow at /google/oauth/start.")
-        return data
-
-    def _delete_state(self) -> None:
-        if self.state_path.exists():
-            self.state_path.unlink()
-
     def _fernet(self) -> Fernet:
         settings = get_settings()
         if not settings.token_encryption_key:
@@ -255,9 +235,38 @@ class GoogleService:
     def _use_database_token_store(self) -> bool:
         return get_settings().token_store == "database"
 
+    def _encode_oauth_state(self, code_verifier: str) -> str:
+        payload = json.dumps(
+            {
+                "code_verifier": code_verifier,
+                "issued_at": int(time.time()),
+            }
+        ).encode("utf-8")
+        return self._fernet().encrypt(payload).decode("ascii")
+
+    def _decode_oauth_state(self, authorization_response: str) -> dict[str, str]:
+        state = parse_qs(urlparse(authorization_response).query).get("state", [None])[0]
+        if not state:
+            raise GoogleAuthError("OAuth state is missing. Restart the flow at /google/oauth/start.")
+        try:
+            payload = self._fernet().decrypt(state.encode("ascii"), ttl=600)
+        except InvalidToken as exc:
+            raise GoogleAuthError("OAuth state expired or could not be decrypted. Restart at /google/oauth/start.") from exc
+        data = json.loads(payload.decode("utf-8"))
+        if not data.get("code_verifier"):
+            raise GoogleAuthError("OAuth state is incomplete. Restart the flow at /google/oauth/start.")
+        data["state"] = state
+        return data
+
 
 def _decode_mime_header(value: str) -> str:
     try:
         return str(make_header(decode_header(value)))
     except Exception:
         return value
+
+
+def _generate_code_verifier() -> str:
+    chars = ascii_letters + digits + "-._~"
+    random = SystemRandom()
+    return "".join(random.choice(chars) for _ in range(128))
