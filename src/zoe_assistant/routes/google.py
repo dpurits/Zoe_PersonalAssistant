@@ -38,8 +38,8 @@ async def google_oauth_callback(request: Request) -> dict[str, str]:
 
 
 @router.get("/oauth/status")
-async def google_oauth_status() -> dict[str, bool]:
-    return {"connected": GoogleService().is_connected()}
+async def google_oauth_status() -> dict:
+    return GoogleService().connection_status()
 
 
 @router.get("/calendar/events")

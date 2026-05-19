@@ -67,11 +67,24 @@ class GoogleService:
         self._save_credentials(flow.credentials)
 
     def is_connected(self) -> bool:
+        return self.connection_status()["connected"]
+
+    def connection_status(self) -> dict[str, Any]:
         try:
             credentials = self._load_credentials()
-        except GoogleAuthError:
-            return False
-        return bool(credentials and (credentials.valid or credentials.refresh_token))
+        except GoogleAuthError as exc:
+            return {
+                "connected": False,
+                "reason": str(exc),
+                "token_store": get_settings().token_store,
+            }
+        connected = bool(credentials and (credentials.valid or credentials.refresh_token))
+        return {
+            "connected": connected,
+            "reason": None if connected else "Google credentials exist but are not usable.",
+            "token_store": get_settings().token_store,
+            "has_refresh_token": bool(credentials.refresh_token),
+        }
 
     def list_calendar_events(self, start: datetime, end: datetime) -> list[dict[str, Any]]:
         credentials = self._get_valid_credentials()
