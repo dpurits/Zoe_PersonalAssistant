@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "zoe-personal-assistant"
+version = "0.1.0"
+description = "Personal WhatsApp assistant for calendar, Gmail, and finance briefings."
+requires-python = ">=3.11"
+dependencies = [
+    "apscheduler>=3.10.4",
+    "cryptography>=48.0.0",
+    "fastapi>=0.115.0",
+    "google-api-python-client>=2.150.0",
+    "google-auth-oauthlib>=1.2.1",
+    "openai>=1.59.0",
+    "psycopg[binary]>=3.2.3",
+    "pydantic>=2.10.0",
+    "pydantic-settings>=2.6.0",
+    "python-multipart>=0.0.20",
+    "sqlalchemy>=2.0.36",
+    "truststore>=0.10.0",
+    "twilio>=9.4.0",
+    "uvicorn[standard]>=0.32.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "httpx>=0.28.0",
+    "pytest>=8.3.0",
+    "ruff>=0.8.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
