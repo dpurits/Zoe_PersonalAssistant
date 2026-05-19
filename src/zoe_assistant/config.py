@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     default_language: str = "auto"
 
     database_url: str = "sqlite:///./zoe.db"
+    token_store: str = "file"
     secret_key: str = Field(default="change-me-before-deploy", min_length=8)
     token_encryption_key: str | None = None
 
@@ -41,4 +42,3 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
-

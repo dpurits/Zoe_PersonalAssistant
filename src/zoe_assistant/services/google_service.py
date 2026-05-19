@@ -253,7 +253,7 @@ class GoogleService:
         return Fernet(settings.token_encryption_key.encode("ascii"))
 
     def _use_database_token_store(self) -> bool:
-        return get_settings().app_env != "local"
+        return get_settings().token_store == "database"
 
 
 def _decode_mime_header(value: str) -> str:

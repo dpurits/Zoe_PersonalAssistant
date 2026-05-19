@@ -15,7 +15,7 @@ def create_app() -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-        if settings.app_env != "local":
+        if settings.token_store == "database":
             init_db()
         scheduler.start()
         try:

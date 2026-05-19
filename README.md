@@ -102,11 +102,28 @@ http://localhost:8000/google/oauth/start
 
 ## Render Deployment
 
+### Free Prototype Path
+
+Use a plain Render **Web Service** instead of a Blueprint. The Blueprint/database path can request payment details because it provisions additional resources.
+
+Tradeoff: this free path uses file-based encrypted token storage on the Render instance. If Render redeploys or restarts the instance, you might need to reconnect Google OAuth. For persistent production use, switch `TOKEN_STORE=database` and add Postgres later.
+
 1. Push this repo to GitHub.
-2. In Render, create a new Blueprint from the GitHub repo and select `render.yaml`.
-3. Add the required secret environment variables in the Render dashboard:
+2. In Render, create a new **Web Service** from the GitHub repo.
+3. Choose the free instance type.
+4. Set:
 
 ```text
+Build Command: pip install -e .
+Start Command: uvicorn zoe_assistant.main:app --host 0.0.0.0 --port $PORT
+```
+
+5. Add the required secret environment variables in the Render dashboard:
+
+```text
+APP_ENV=production
+TIMEZONE=Asia/Jerusalem
+TOKEN_STORE=file
 TOKEN_ENCRYPTION_KEY=
 GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
@@ -118,19 +135,19 @@ TWILIO_WHATSAPP_FROM=whatsapp:+14155238886
 PRIMARY_WHATSAPP_TO=whatsapp:+YOUR_PHONE_NUMBER
 ```
 
-4. In Google Cloud Console, add this Authorized redirect URI to the same OAuth client:
+6. In Google Cloud Console, add this Authorized redirect URI to the same OAuth client:
 
 ```text
 https://YOUR-RENDER-SERVICE.onrender.com/google/oauth/callback
 ```
 
-5. After Render deploys, connect Google by opening:
+7. After Render deploys, connect Google by opening:
 
 ```text
 https://YOUR-RENDER-SERVICE.onrender.com/google/oauth/start
 ```
 
-6. In Twilio WhatsApp Sandbox, set `When a message comes in` to:
+8. In Twilio WhatsApp Sandbox, set `When a message comes in` to:
 
 ```text
 https://YOUR-RENDER-SERVICE.onrender.com/twilio/whatsapp
