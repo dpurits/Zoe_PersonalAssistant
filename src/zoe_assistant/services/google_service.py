@@ -32,7 +32,6 @@ class GoogleService:
     """Google OAuth, Calendar, and Gmail integration."""
 
     token_key = "google_credentials"
-    token_path = Path(".local/google_credentials.enc")
 
     def required_scopes(self) -> list[str]:
         return [
@@ -221,8 +220,9 @@ class GoogleService:
         if self._use_database_token_store():
             save_secret(self.token_key, encrypted)
         else:
-            self.token_path.parent.mkdir(parents=True, exist_ok=True)
-            self.token_path.write_bytes(encrypted)
+            token_path = self._token_path()
+            token_path.parent.mkdir(parents=True, exist_ok=True)
+            token_path.write_bytes(encrypted)
 
     def _load_credentials(self) -> Credentials:
         encrypted = self._load_encrypted_credentials()
@@ -238,9 +238,10 @@ class GoogleService:
     def _load_encrypted_credentials(self) -> bytes | None:
         if self._use_database_token_store():
             return load_secret(self.token_key)
-        if not self.token_path.exists():
+        token_path = self._token_path()
+        if not token_path.exists():
             return None
-        return self.token_path.read_bytes()
+        return token_path.read_bytes()
 
     def _fernet(self) -> Fernet:
         settings = get_settings()
@@ -254,17 +255,26 @@ class GoogleService:
     def _token_store_diagnostics(self) -> dict[str, Any]:
         if self._use_database_token_store():
             return {"mode": "database"}
+        token_path = self._token_path()
         return {
             "mode": "file",
             "cwd": str(Path.cwd()),
-            "token_path": str(self.token_path.resolve()),
-            "token_file_exists": self.token_path.exists(),
-            "token_file_size": self.token_path.stat().st_size if self.token_path.exists() else 0,
-            "token_parent_exists": self.token_path.parent.exists(),
-            "token_parent_writable": os.access(self.token_path.parent, os.W_OK)
-            if self.token_path.parent.exists()
+            "token_path": str(token_path.resolve()),
+            "token_file_exists": token_path.exists(),
+            "token_file_size": token_path.stat().st_size if token_path.exists() else 0,
+            "token_parent_exists": token_path.parent.exists(),
+            "token_parent_writable": os.access(token_path.parent, os.W_OK)
+            if token_path.parent.exists()
             else None,
         }
+
+    def _token_path(self) -> Path:
+        settings = get_settings()
+        if settings.token_file_path:
+            return Path(settings.token_file_path)
+        if settings.app_env == "production":
+            return Path("/tmp/zoe/google_credentials.enc")
+        return Path(".local/google_credentials.enc")
 
     def _encode_oauth_state(self, code_verifier: str) -> str:
         payload = json.dumps(

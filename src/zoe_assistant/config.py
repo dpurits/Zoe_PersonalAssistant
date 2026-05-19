@@ -16,6 +16,7 @@ class Settings(BaseSettings):
 
     database_url: str = "sqlite:///./zoe.db"
     token_store: str = "file"
+    token_file_path: str | None = None
     secret_key: str = Field(default="change-me-before-deploy", min_length=8)
     token_encryption_key: str | None = None
 
